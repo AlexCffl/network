@@ -17,46 +17,54 @@ public class Conn {
     private static final int LONGUEUR_CLE = 256;
 
     public void inscription(String pseudo, String mdp) throws Exception {
-        SecureRandom random = new SecureRandom();
-        byte[] sel = new byte[16];
-        random.nextBytes(sel);
+        if(estPresent(pseudo) && estFort(mdp)) {
+            SecureRandom random = new SecureRandom();
+            byte[] sel = new byte[16];
+            random.nextBytes(sel);
 
-        String hashMdp = hacherMotDePasse(mdp, sel);
-        String selBase64 = Base64.getEncoder().encodeToString(sel);
+            String hashMdp = hacherMotDePasse(mdp, sel);
+            String selBase64 = Base64.getEncoder().encodeToString(sel);
 
-        Path cheminFichier = Path.of("utilisateurs.txt");
-        String line = pseudo + ":" + selBase64 + ":" + hashMdp + System.lineSeparator();
+            Path cheminFichier = Path.of("utilisateurs.txt");
+            String line = pseudo + ":" + selBase64 + ":" + hashMdp + System.lineSeparator();
 
-        Files.writeString(
-                cheminFichier,
-                line,
-                StandardOpenOption.CREATE,
-                StandardOpenOption.APPEND
-        );
+            Files.writeString(
+                    cheminFichier,
+                    line,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.APPEND
+            );
+        }
     }
 
 
 
 
-    public  boolean connexion(String pseudo, String mdp){
+    public boolean connexion(String pseudo, String mdp) {
         Path cheminFichier = Path.of("utilisateurs.txt");
 
         try {
             List<String> lignes = Files.readAllLines(cheminFichier, StandardCharsets.UTF_8);
-            for(String ligne : lignes){
+            for (String ligne : lignes) {
                 String[] col = ligne.split(":");
-                if(col[0].equals(pseudo)){
-                    if(col.length != 3){
+                if (col[0].equals(pseudo)) {
+                    if (col.length != 3) {
                         return false;
                     }
-
+                    byte[] sel = Base64.getDecoder().decode(col[1]);
+                    byte[] hashEnregistre = Base64.getDecoder().decode(col[2]);
+                    String hashSaisiBase64 = hacherMotDePasse(mdp, sel);
+                    byte[] hashSaisi = Base64.getDecoder().decode(hashSaisiBase64);
+                    return MessageDigest.isEqual(hashEnregistre, hashSaisi);
                 }
             }
-
-        }catch(Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
         }
+
+        return false;
     }
+
 
 
 
@@ -83,6 +91,8 @@ public class Conn {
         byte[] hash = factory.generateSecret(spec).getEncoded();
         return Base64.getEncoder().encodeToString(hash);
     }
+
+
 
     public boolean estFort(String mdp){
         int longueur = mdp.length();
