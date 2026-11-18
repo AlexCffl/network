@@ -1,14 +1,14 @@
-import javax.crypto.Cipher;
-import javax.crypto.NoSuchPaddingException;
-import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
-import java.io.File;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.security.NoSuchAlgorithmException;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
+import java.security.spec.KeySpec;
+import java.util.Base64;
 import java.util.List;
 
 public class Conn {
@@ -17,7 +17,7 @@ public class Conn {
     private static final int LONGUEUR_CLE = 256;
 
     public void inscription(String pseudo, String mdp) throws Exception {
-        if(estPresent(pseudo) && estFort(mdp)) {
+        if (!estPresent(pseudo) && estFort(mdp)) {
             SecureRandom random = new SecureRandom();
             byte[] sel = new byte[16];
             random.nextBytes(sel);
@@ -37,11 +37,11 @@ public class Conn {
         }
     }
 
-
-
-
     public boolean connexion(String pseudo, String mdp) {
         Path cheminFichier = Path.of("utilisateurs.txt");
+        if (!Files.exists(cheminFichier)) {
+            return false;
+        }
 
         try {
             List<String> lignes = Files.readAllLines(cheminFichier, StandardCharsets.UTF_8);
@@ -65,22 +65,18 @@ public class Conn {
         return false;
     }
 
-
-
-
     public boolean estPresent(String pseudo) throws IOException {
         Path cheminFichier = Path.of("utilisateurs.txt");
-        try {
-            List<String> lignes = Files.readAllLines(cheminFichier, StandardCharsets.UTF_8);
-            for(String ligne : lignes){
-                String[] col = ligne.split(":");
-                if(col[0].equals(pseudo)){
-                    return true;
-                }
-            }
+        if (!Files.exists(cheminFichier)) {
+            return false;
+        }
 
-        }catch(Exception e){
-            e.printStackTrace();
+        List<String> lignes = Files.readAllLines(cheminFichier, StandardCharsets.UTF_8);
+        for (String ligne : lignes) {
+            String[] col = ligne.split(":");
+            if (col[0].equals(pseudo)) {
+                return true;
+            }
         }
         return false;
     }
@@ -92,27 +88,24 @@ public class Conn {
         return Base64.getEncoder().encodeToString(hash);
     }
 
-
-
-    public boolean estFort(String mdp){
-        int longueur = mdp.length();
-        if(longueur < 12){
+    public boolean estFort(String mdp) {
+        if (mdp == null || mdp.length() < 12) {
             return false;
         }
         int spec = 0;
-        int lettre = 0;
-        int min =0;
+        int min = 0;
         int maj = 0;
         int chiffre = 0;
-        for(int i = 0; i < mdp.length(); i++) {
+
+        for (int i = 0; i < mdp.length(); i++) {
             char c = mdp.charAt(i);
-            if(Character.isDigit((c))){
+            if (Character.isDigit(c)) {
                 chiffre++;
-            }else {
-                if(Character.isLetterOrDigit(c)){
+            } else {
+                if (!Character.isLetterOrDigit(c)) {
                     spec++;
                 } else {
-                    if(Character.isUpperCase(c)){
+                    if (Character.isUpperCase(c)) {
                         maj++;
                     } else if (Character.isLowerCase(c)) {
                         min++;
@@ -122,9 +115,4 @@ public class Conn {
         }
         return chiffre >= 1 && maj >= 1 && min >= 1 && spec >= 1;
     }
-
-
-}
-
-void main() {
 }
