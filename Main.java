@@ -1,37 +1,92 @@
+import javax.security.auth.Subject;
+import javax.security.auth.callback.*;
+import javax.security.auth.login.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
 void main() throws Exception {
-    // Nettoyage avant de commencer pour partir d'un fichier vide
-    Files.deleteIfExists(Path.of("utilisateurs.txt"));
-
+    // 1. Préparation de l'environnement (fichier propre + inscription d'Alice)
     Conn auth = new Conn();
-
-    IO.println("=== 1. TESTS DE ROBUSTESSE (estFort) ===");
-    verifier("Mot de passe valide", auth.estFort("MonSuperMdp1!") == true);
-    verifier("Trop court (< 12)", auth.estFort("Abc1!def") == false);
-    verifier("Sans majuscule", auth.estFort("monsupermdp1!") == false);
-    verifier("Sans minuscule", auth.estFort("MONSUPERMDP1!") == false);
-    verifier("Sans chiffre", auth.estFort("MonSuperMdp!!") == false);
-    verifier("Sans caractère spécial", auth.estFort("MonSuperMdp12") == false);
-
-    IO.println("\n=== 2. TESTS D'INSCRIPTION (inscription & estPresent) ===");
     auth.inscription("Alice", "MonSuperMdp1!");
-    verifier("Alice est bien inscrite", auth.estPresent("Alice") == true);
+    auth.inscription("Natalia", "MonSuperMdp1!");
+    auth.inscription("Alice", "MonSuperMdp1!");
 
-    auth.inscription("Bob", "faible");
-    verifier("Bob (mdp faible) est refusé", auth.estPresent("Bob") == false);
 
-    auth.inscription("Alice", "AutreMdpFort2@");
-    verifier("Doublon Alice ignoré", auth.connexion("Alice", "MonSuperMdp1!") == true);
+    // Configuration JAAS intégrée directement en mémoire (pas besoin de fichier jaas.config)
+    Configuration config = new Configuration() {
+        @Override
+        public AppConfigurationEntry[] getAppConfigurationEntry(String name) {
+            return new AppConfigurationEntry[]{
+                    new AppConfigurationEntry(
+                            LoginModule.class.getName(),
+                            AppConfigurationEntry.LoginModuleControlFlag.REQUIRED,
+                            Map.of()
+                    )
+            };
+        }
+    };
 
-    IO.println("\n=== 3. TESTS DE CONNEXION (connexion) ===");
-    verifier("Connexion Alice réussie", auth.connexion("Alice", "MonSuperMdp1!") == true);
-    verifier("Mauvais mot de passe refusé", auth.connexion("Alice", "MauvaisMdp1!") == false);
-    verifier("Utilisateur inconnu refusé", auth.connexion("Inconnu", "MonSuperMdp1!") == false);
+    IO.println("=== 1. TESTS DE CONNEXION JAAS (login & commit) ===");
+
+    // Test 1 : Connexion réussie
+    LoginContext lcAlice = new LoginContext("TestApp", new Subject(), creerHandler("Alice", "MonSuperMdp1!"), config);
+    boolean connexionReussie = false;
+    try {
+        lcAlice.login();
+        connexionReussie = true;
+    } catch (LoginException e) {
+        connexionReussie = false;
+    }
+    verifier("Connexion valide avec Alice", connexionReussie == true);
+
+    // Test 2 : Vérification du Subject et du Principal (Utilisateur)
+    Subject subject = lcAlice.getSubject();
+    boolean principalAjoute = subject.getPrincipals().stream()
+            .anyMatch(p -> p.getName().equals("Alice"));
+    verifier("Le Principal 'Alice' est bien ajouté au Subject", principalAjoute == true);
+
+    // Test 3 : Déconnexion (logout)
+    lcAlice.logout();
+    verifier("Déconnexion vide bien les Principals du Subject", subject.getPrincipals().isEmpty() == true);
+
+
+    IO.println("\n=== 2. TESTS D'ÉCHEC D'AUTHENTIFICATION ===");
+
+    // Test 4 : Mauvais mot de passe
+    verifier("Mauvais mot de passe refusé", testerEchec("Alice", "MauvaisMdp1!", config));
+
+    // Test 5 : Utilisateur inconnu
+    verifier("Utilisateur inconnu refusé", testerEchec("Inconnu", "MonSuperMdp1!", config));
+
+    // Test 6 : Identifiants null (saisie vide)
+    verifier("Identifiants null refusés", testerEchec(null, null, config));
 }
 
-// Petite méthode utilitaire pour afficher clairement le résultat
+// --- MÉTHODES UTILITAIRES ---
+
+CallbackHandler creerHandler(String pseudo, String mdp) {
+    return callbacks -> {
+        for (Callback cb : callbacks) {
+            if (cb instanceof NameCallback nc) {
+                nc.setName(pseudo);
+            } else if (cb instanceof PasswordCallback pc) {
+                pc.setPassword(mdp != null ? mdp.toCharArray() : null);
+            }
+        }
+    };
+}
+
+boolean testerEchec(String pseudo, String mdp, Configuration config) {
+    try {
+        LoginContext lc = new LoginContext("TestApp", new Subject(), creerHandler(pseudo, mdp), config);
+        lc.login();
+        return false; // Si on arrive ici, la connexion est passée alors qu'elle n'aurait pas dû
+    } catch (LoginException e) {
+        return true; // Comportement attendu : JAAS a bien rejeté la connexion
+    }
+}
+
 void verifier(String nomDuTest, boolean condition) {
     if (condition) {
         IO.println("[OK]     " + nomDuTest);
