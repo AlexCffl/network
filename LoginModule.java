@@ -17,6 +17,7 @@ public class LoginModule implements javax.security.auth.spi.LoginModule {
     public void initialize(Subject subject, CallbackHandler callbackHandler, Map<String, ?> sharedState, Map<String, ?> options) {
         this.subject = subject;
         this.callbackHandler = callbackHandler;
+        this.connexion = new Conn();
     }
 
     @Override

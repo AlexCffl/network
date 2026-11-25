@@ -8,9 +8,13 @@ import java.util.Map;
 void main() throws Exception {
     // 1. Préparation de l'environnement (fichier propre + inscription d'Alice)
     Conn auth = new Conn();
-    auth.inscription("Alice", "MonSuperMdp1!");
+    auth.inscription("roman", "MonSuperMdp1!");
     auth.inscription("Natalia", "MonSuperMdp1!");
-    auth.inscription("Alice", "MonSuperMdp1!");
+    auth.inscription("Romzan", "roman");
+    auth.inscription("Enzo", "roman");
+    auth.inscription("Axel", "roman");
+
+
 
 
     // Configuration JAAS intégrée directement en mémoire (pas besoin de fichier jaas.config)
@@ -30,7 +34,7 @@ void main() throws Exception {
     IO.println("=== 1. TESTS DE CONNEXION JAAS (login & commit) ===");
 
     // Test 1 : Connexion réussie
-    LoginContext lcAlice = new LoginContext("TestApp", new Subject(), creerHandler("Alice", "MonSuperMdp1!"), config);
+    LoginContext lcAlice = new LoginContext("TestApp", new Subject(), creerHandler("roman", "roman"), config);
     boolean connexionReussie = false;
     try {
         lcAlice.login();
